@@ -200,7 +200,9 @@ export function PodListRenderer(props: PodListProps) {
   const { t } = useTranslation(['glossary', 'translation']);
 
   const getCpuUsage = (pod: Pod) => {
-    const metric = metrics?.find(it => it.getName() === pod.getName());
+    const metric = metrics?.find(
+      it => it.getName() === pod.getName() && it.getNamespace() === pod.getNamespace()
+    );
     if (!metric) return;
 
     return (
@@ -209,7 +211,9 @@ export function PodListRenderer(props: PodListProps) {
   };
 
   const getMemoryUsage = (pod: Pod) => {
-    const metric = metrics?.find(it => it.getName() === pod.getName());
+    const metric = metrics?.find(
+      it => it.getName() === pod.getName() && it.getNamespace() === pod.getNamespace()
+    );
     if (!metric) return;
 
     return (
