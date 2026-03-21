@@ -223,6 +223,12 @@ function EventsSection() {
           gridTemplate: 'auto',
         },
         {
+          id: 'node',
+          label: t('glossary|Node'),
+          getValue: event => event.source?.host ?? '',
+          show: false,
+        },
+        {
           id: 'count',
           label: t('Count'),
           gridTemplate: 'min-content',
