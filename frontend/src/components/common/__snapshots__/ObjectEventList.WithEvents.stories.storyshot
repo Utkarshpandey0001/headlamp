@@ -71,6 +71,7 @@
                   <button
                     aria-label="sort swap"
                     class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+                    data-mui-internal-clone-element="true"
                     tabindex="0"
                     type="button"
                   >
