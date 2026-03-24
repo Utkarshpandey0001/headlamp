@@ -447,6 +447,8 @@
   "View YAML": "查看 YAML",
   "Collapse": "折叠",
   "Expand": "展开",
+  "Sort descending": "",
+  "Sort ascending": "",
   "sort up": "升序",
   "sort down": "降序",
   "sort swap": "交换排序",

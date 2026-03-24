@@ -455,6 +455,8 @@
   "View YAML": "Visualizza YAML",
   "Collapse": "Comprimi",
   "Expand": "Espandi",
+  "Sort descending": "",
+  "Sort ascending": "",
   "sort up": "ordina crescente",
   "sort down": "ordina decrescente",
   "sort swap": "scambia ordinamento",

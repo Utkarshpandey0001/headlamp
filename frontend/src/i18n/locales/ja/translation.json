@@ -447,6 +447,8 @@
   "View YAML": "YAML 表示",
   "Collapse": "折りたたむ",
   "Expand": "展開する",
+  "Sort descending": "",
+  "Sort ascending": "",
   "sort up": "昇順並べ替え",
   "sort down": "降順並べ替え",
   "sort swap": "並べ替え切り替え",

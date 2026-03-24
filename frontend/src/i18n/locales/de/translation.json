@@ -451,6 +451,8 @@
   "View YAML": "YAML anzeigen",
   "Collapse": "Einklappen",
   "Expand": "Ausklappen",
+  "Sort descending": "",
+  "Sort ascending": "",
   "sort up": "Niedrigste zuerst",
   "sort down": "Höchste zuerst",
   "sort swap": "Sortierung umkehren",

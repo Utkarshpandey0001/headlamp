@@ -447,6 +447,8 @@
   "View YAML": "YAML 보기",
   "Collapse": "축소",
   "Expand": "확장",
+  "Sort descending": "",
+  "Sort ascending": "",
   "sort up": "정렬 오름차순",
   "sort down": "정렬 내림차순",
   "sort swap": "정렬 스왑",
