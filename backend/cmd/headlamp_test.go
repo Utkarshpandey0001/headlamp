@@ -86,9 +86,9 @@ func getResponse(handler http.Handler, method, url string, body interface{}) (*h
 
 func getResponseFromRestrictedEndpoint(handler http.Handler, method, url string, body interface{}) (*httptest.ResponseRecorder, error) { //nolint:lll
 	token := uuid.New().String()
-	os.Setenv("HEADLAMP_BACKEND_TOKEN", token)
+	_ = os.Setenv("HEADLAMP_BACKEND_TOKEN", token)
 
-	defer os.Unsetenv("HEADLAMP_BACKEND_TOKEN")
+	defer func() { _ = os.Unsetenv("HEADLAMP_BACKEND_TOKEN") }()
 
 	req, err := makeJSONReq(method, url, body)
 	if err != nil {
@@ -535,26 +535,26 @@ func TestDeletePlugin(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "plugins")
 	require.NoError(t, err)
 
-	defer os.RemoveAll(tempDir)
+	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	// create user-plugins dir
 	userPluginDir := tempDir + "/user-plugins"
-	err = os.Mkdir(userPluginDir, 0o755)
+	err = os.Mkdir(userPluginDir, 0o750)
 	require.NoError(t, err)
 
 	// create dev plugins dir
 	devPluginDir := tempDir + "/plugins"
-	err = os.Mkdir(devPluginDir, 0o755)
+	err = os.Mkdir(devPluginDir, 0o750)
 	require.NoError(t, err)
 
 	// create plugin in dev dir
 	pluginDir := devPluginDir + "/test-plugin"
-	err = os.Mkdir(pluginDir, 0o755)
+	err = os.Mkdir(pluginDir, 0o750)
 	require.NoError(t, err)
 
 	// create plugin file
 	pluginFile := pluginDir + "/main.js"
-	_, err = os.Create(pluginFile)
+	_, err = os.Create(pluginFile) //nolint:gosec
 	require.NoError(t, err)
 
 	cache := cache.New[interface{}]()
@@ -582,6 +582,7 @@ func TestDeletePlugin(t *testing.T) {
 
 	// Verify JSON response body
 	var response map[string]bool
+
 	err = json.Unmarshal(rr.Body.Bytes(), &response)
 	require.NoError(t, err, "Response should be valid JSON")
 	assert.True(t, response["success"], "Response should indicate success")
@@ -804,7 +805,8 @@ func TestCustomNameToExtensions(t *testing.T) {
 			// Write the config to a temp file so customNameToExtensions can persist it.
 			tmpFile, err := os.CreateTemp(t.TempDir(), "kubeconfig-*.yaml")
 			require.NoError(t, err)
-			tmpFile.Close()
+
+			_ = tmpFile.Close()
 
 			config := &api.Config{
 				Contexts: map[string]*api.Context{
@@ -853,7 +855,7 @@ func runClusterRenameTests(
 	}
 
 	// This test modifies the test file, so we have to restore the test file at the end of the test.
-	err = os.WriteFile("./headlamp_testdata/kubeconfig_rename", resetConfigByte, 0o600)
+	err = os.WriteFile("./headlamp_testdata/kubeconfig_rename", resetConfigByte, 0o600) //nolint:gosec
 	require.NoError(t, err)
 }
 
@@ -961,7 +963,7 @@ func TestBaseURLReplace(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "baseurl_test")
 	require.NoError(t, err)
 
-	defer os.RemoveAll(tempDir)
+	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	// Create a sample index.html file
 	indexContent := []byte(`<!DOCTYPE html>
@@ -1023,7 +1025,7 @@ func TestBaseURLReplace(t *testing.T) {
 			baseURLReplace(tempDir, tc.baseURL)
 
 			// Read the modified index.html
-			modifiedContent, err := os.ReadFile(filepath.Join(tempDir, "index.html"))
+			modifiedContent, err := os.ReadFile(filepath.Join(tempDir, "index.html")) //nolint:gosec
 			require.NoError(t, err)
 
 			assert.Equal(t, tc.expectedOutput, string(modifiedContent))
@@ -1152,13 +1154,13 @@ func TestOIDCTokenRefreshMiddleware(t *testing.T) {
 	middleware := config.OIDCTokenRefreshMiddleware(handler)
 
 	// Test case: non-cluster request
-	req := httptest.NewRequest("GET", "/non-cluster", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/non-cluster", nil)
 	rec := httptest.NewRecorder()
 	middleware.ServeHTTP(rec, req)
 	assert.Equal(t, http.StatusOK, rec.Code)
 
 	// Test case: cluster request without token
-	req = httptest.NewRequest("GET", "/clusters/test-cluster", nil)
+	req = httptest.NewRequestWithContext(context.Background(), "GET", "/clusters/test-cluster", nil)
 	rec = httptest.NewRecorder()
 	middleware.ServeHTTP(rec, req)
 	assert.Equal(t, http.StatusOK, rec.Code)
@@ -1169,7 +1171,7 @@ func TestStartHeadlampServer(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "headlamp-test")
 	require.NoError(t, err)
 
-	defer os.RemoveAll(tempDir)
+	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	config := &HeadlampConfig{
 		HeadlampConfig: &headlampconfig.HeadlampConfig{
@@ -1212,7 +1214,7 @@ func TestStartHeadlampServer(t *testing.T) {
 
 	resp, err := client.Do(req)
 	if err == nil {
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 	}
 
 	assert.NoError(t, err, "Server should be running and accepting connections")
@@ -1226,7 +1228,8 @@ func TestStartHeadlampServer(t *testing.T) {
 func TestStartHeadlampServerTLS(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "headlamp-test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+
+	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	cfg := &HeadlampConfig{
 		HeadlampConfig: &headlampconfig.HeadlampConfig{
@@ -1243,6 +1246,7 @@ func TestStartHeadlampServerTLS(t *testing.T) {
 	}
 
 	go StartHeadlampServer(cfg)
+
 	time.Sleep(200 * time.Millisecond)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -1265,7 +1269,8 @@ func TestStartHeadlampServerTLS(t *testing.T) {
 		Transport: &http.Transport{TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12, RootCAs: pool}},
 	}).Do(req)
 	require.NoError(t, err)
-	defer resp.Body.Close()
+
+	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
@@ -1273,8 +1278,9 @@ func TestStartHeadlampServerTLS(t *testing.T) {
 //nolint:funlen
 func TestHandleClusterHelm(t *testing.T) {
 	// Set up test environment
-	os.Setenv("HEADLAMP_BACKEND_TOKEN", "test-token")
-	defer os.Unsetenv("HEADLAMP_BACKEND_TOKEN")
+	require.NoError(t, os.Setenv("HEADLAMP_BACKEND_TOKEN", "test-token"))
+
+	defer func() { _ = os.Unsetenv("HEADLAMP_BACKEND_TOKEN") }()
 
 	config := &HeadlampConfig{
 		HeadlampConfig: &headlampconfig.HeadlampConfig{
@@ -1348,7 +1354,7 @@ func TestHandleClusterHelm(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			req := httptest.NewRequest(tc.method, tc.path, nil)
+			req := httptest.NewRequestWithContext(context.Background(), tc.method, tc.path, nil)
 			if tc.token != "" {
 				req.Header.Set("X-HEADLAMP_BACKEND-TOKEN", tc.token)
 			}
@@ -1436,7 +1442,7 @@ func TestProcessWebSocketProtocolHeader(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest("GET", "/", nil)
+			req := httptest.NewRequestWithContext(context.Background(), "GET", "/", nil)
 			req.Header = tt.initialHeader
 
 			processWebSocketProtocolHeader(req)
@@ -1484,7 +1490,7 @@ func TestProcessTokenProtocol(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest("GET", "/", nil)
+			req := httptest.NewRequestWithContext(context.Background(), "GET", "/", nil)
 			if tt.initialAuthHeader != "" {
 				req.Header.Set("Authorization", tt.initialAuthHeader)
 			}
@@ -1591,18 +1597,19 @@ func TestCacheMiddleware_CacheHitAndCacheMiss(t *testing.T) {
 
 	proxyHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Use the incoming request's context
-		req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, fakeK8s.URL+r.URL.Path, nil)
+		req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, fakeK8s.URL+r.URL.Path, nil) //nolint:gosec
 		if err != nil {
 			http.Error(w, "failed to create request", http.StatusInternalServerError)
 			return
 		}
 
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := http.DefaultClient.Do(req) //nolint:gosec
 		if err != nil {
 			http.Error(w, "proxy error", http.StatusInternalServerError)
 			return
 		}
-		defer resp.Body.Close()
+
+		defer func() { _ = resp.Body.Close() }()
 
 		_, err = io.Copy(w, resp.Body)
 		assert.NoError(t, err)
@@ -1621,12 +1628,12 @@ func TestCacheMiddleware_CacheHitAndCacheMiss(t *testing.T) {
 	resp1, err := httpRequestWithContext(ctx, ts.URL+"/clusters/test/api/v1/resource", "GET")
 	assert.NoError(t, err)
 
-	defer resp1.Body.Close()
+	defer func() { _ = resp1.Body.Close() }()
 
 	resp2, err := httpRequestWithContext(ctx, ts.URL+"/clusters/test/api/v1/resource", "GET")
 	assert.NoError(t, err)
 
-	defer resp2.Body.Close()
+	defer func() { _ = resp2.Body.Close() }()
 
 	resp1String, err := stringResponse(resp1)
 	assert.NoError(t, err)
@@ -1656,18 +1663,19 @@ func TestCacheMiddleware_AuthErrorResponse(t *testing.T) {
 
 	proxyHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Use the incoming request's context
-		req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, fakeK8s.URL+r.URL.Path, nil)
+		req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, fakeK8s.URL+r.URL.Path, nil) //nolint:gosec
 		if err != nil {
 			http.Error(w, "failed to create request", http.StatusInternalServerError)
 			return
 		}
 
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := http.DefaultClient.Do(req) //nolint:gosec
 		if err != nil {
 			http.Error(w, "proxy error", http.StatusInternalServerError)
 			return
 		}
-		defer resp.Body.Close()
+
+		defer func() { _ = resp.Body.Close() }()
 
 		_, err = io.Copy(w, resp.Body)
 		assert.NoError(t, err)
@@ -1690,7 +1698,7 @@ func TestCacheMiddleware_AuthErrorResponse(t *testing.T) {
 	resp1, err := httpRequestWithContext(ctx, ts.URL+"/clusters/test/api/v1/resource", "GET")
 	assert.NoError(t, err)
 
-	defer resp1.Body.Close()
+	defer func() { _ = resp1.Body.Close() }()
 
 	resp1String, err := stringResponse(resp1)
 	assert.NoError(t, err)
@@ -1714,18 +1722,19 @@ func TestCacheMiddleware_CacheInvalidation(t *testing.T) {
 
 	proxyHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Use the incoming request's context
-		req, err := http.NewRequestWithContext(r.Context(), http.MethodPost, fakeK8s.URL+r.URL.Path, nil)
+		req, err := http.NewRequestWithContext(r.Context(), http.MethodPost, fakeK8s.URL+r.URL.Path, nil) //nolint:gosec
 		if err != nil {
 			http.Error(w, "failed to create request", http.StatusInternalServerError)
 			return
 		}
 
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := http.DefaultClient.Do(req) //nolint:gosec
 		if err != nil {
 			http.Error(w, "proxy error", http.StatusInternalServerError)
 			return
 		}
-		defer resp.Body.Close()
+
+		defer func() { _ = resp.Body.Close() }()
 
 		_, err = io.Copy(w, resp.Body)
 		assert.NoError(t, err)
@@ -1745,7 +1754,7 @@ func TestCacheMiddleware_CacheInvalidation(t *testing.T) {
 	resp, err := httpRequestWithContext(ctx, ts.URL+"/clusters/test/api/v1/resource", "POST")
 	assert.NoError(t, err)
 
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, "", resp.Header.Get("X-HEADLAMP-CACHE"))
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
@@ -1753,7 +1762,7 @@ func TestCacheMiddleware_CacheInvalidation(t *testing.T) {
 	resp1, err := httpRequestWithContext(ctx, ts.URL+"/clusters/test/api/v1/resource", "GET")
 	assert.NoError(t, err)
 
-	defer resp1.Body.Close()
+	defer func() { _ = resp1.Body.Close() }()
 
 	resp1String, err := stringResponse(resp1)
 	assert.NoError(t, err)
@@ -1785,7 +1794,7 @@ func newRealK8sHeadlampConfig(t *testing.T) (*HeadlampConfig, string) {
 			continue
 		}
 
-		if _, err := os.Stat(p); err == nil {
+		if _, err := os.Stat(p); err == nil { //nolint:gosec
 			kubeconfigExists = true
 			break
 		} else if !os.IsNotExist(err) {
@@ -1807,8 +1816,8 @@ func newRealK8sHeadlampConfig(t *testing.T) (*HeadlampConfig, string) {
 	pluginDir := filepath.Join(tempDir, "plugins")
 	userPluginDir := filepath.Join(tempDir, "user-plugins")
 
-	require.NoError(t, os.MkdirAll(pluginDir, 0o755))
-	require.NoError(t, os.MkdirAll(userPluginDir, 0o755))
+	require.NoError(t, os.MkdirAll(pluginDir, 0o750))
+	require.NoError(t, os.MkdirAll(userPluginDir, 0o750))
 
 	// Use temp dir as config home so Headlamp's dynamic clusters file
 	// (which can have stale minikube entries) does not overwrite the main kubeconfig.
@@ -1816,11 +1825,11 @@ func newRealK8sHeadlampConfig(t *testing.T) (*HeadlampConfig, string) {
 	if runtime.GOOS == "darwin" {
 		require.NoError(t, os.MkdirAll(
 			filepath.Join(tempConfigHome, "Library", "Application Support", "Headlamp", "kubeconfigs"),
-			0o755,
+			0o750,
 		))
 		t.Cleanup(setEnvForTest(t, "HOME", tempConfigHome))
 	} else {
-		require.NoError(t, os.MkdirAll(filepath.Join(tempConfigHome, "Headlamp", "kubeconfigs"), 0o755))
+		require.NoError(t, os.MkdirAll(filepath.Join(tempConfigHome, "Headlamp", "kubeconfigs"), 0o750))
 		t.Cleanup(setEnvForTest(t, "XDG_CONFIG_HOME", tempConfigHome))
 	}
 
@@ -1904,14 +1913,16 @@ func TestCacheMiddleware_CacheHitAndCacheMiss_RealK8s(t *testing.T) {
 
 	resp1, err := httpRequestWithContext(ctx, ts.URL+apiPath, "GET")
 	require.NoError(t, err)
-	defer resp1.Body.Close()
+
+	defer func() { _ = resp1.Body.Close() }()
 
 	require.Equal(t, http.StatusOK, resp1.StatusCode, "first GET should succeed")
 	firstFromCache := resp1.Header.Get("X-HEADLAMP-CACHE")
 
 	resp2, err := httpRequestWithContext(ctx, ts.URL+apiPath, "GET")
 	require.NoError(t, err)
-	defer resp2.Body.Close()
+
+	defer func() { _ = resp2.Body.Close() }()
 
 	require.Equal(t, http.StatusOK, resp2.StatusCode, "second GET should succeed")
 	secondFromCache := resp2.Header.Get("X-HEADLAMP-CACHE")
@@ -1952,7 +1963,8 @@ func TestCacheMiddleware_CacheInvalidation_RealK8s(t *testing.T) {
 
 	createResp, err := http.DefaultClient.Do(createReq)
 	require.NoError(t, err)
-	createResp.Body.Close()
+
+	_ = createResp.Body.Close()
 	require.Equal(t, http.StatusCreated, createResp.StatusCode, "creating ConfigMap should succeed")
 
 	t.Cleanup(func() {
@@ -1960,19 +1972,21 @@ func TestCacheMiddleware_CacheInvalidation_RealK8s(t *testing.T) {
 		resp, _ := http.DefaultClient.Do(delReq)
 
 		if resp != nil {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 		}
 	})
 
 	resp1, err := httpRequestWithContext(ctx, ts.URL+cmPath, "GET")
 	require.NoError(t, err)
 
-	defer resp1.Body.Close()
+	defer func() { _ = resp1.Body.Close() }()
+
 	require.Equal(t, http.StatusOK, resp1.StatusCode)
 
 	delResp, err := httpRequestWithContext(ctx, ts.URL+cmPath, "DELETE")
 	require.NoError(t, err)
-	delResp.Body.Close()
+
+	_ = delResp.Body.Close()
 	require.Contains(t, []int{http.StatusOK, http.StatusAccepted}, delResp.StatusCode, "DELETE should succeed")
 
 	// If DELETE returned 202 Accepted (asynchronous), poll until resource is deleted.
@@ -1983,7 +1997,7 @@ func TestCacheMiddleware_CacheInvalidation_RealK8s(t *testing.T) {
 		for time.Now().Before(deadline) {
 			resp, err := httpRequestWithContext(ctx, ts.URL+cmPath, "GET")
 			if err == nil {
-				resp.Body.Close()
+				_ = resp.Body.Close()
 
 				if resp.StatusCode == http.StatusNotFound {
 					break
@@ -1996,7 +2010,8 @@ func TestCacheMiddleware_CacheInvalidation_RealK8s(t *testing.T) {
 
 	resp2, err := httpRequestWithContext(ctx, ts.URL+cmPath, "GET")
 	require.NoError(t, err)
-	defer resp2.Body.Close()
+
+	defer func() { _ = resp2.Body.Close() }()
 
 	require.Equal(t, http.StatusNotFound, resp2.StatusCode,
 		"GET after DELETE should return 404 (cache invalidated)")
@@ -2084,7 +2099,7 @@ func TestHandleClusterServiceProxy(t *testing.T) {
 
 	// Case 1: Missing ?request => route doesn't match => 404, no headers set
 	{
-		req := httptest.NewRequest(http.MethodGet,
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet,
 			"/clusters/"+cluster+"/serviceproxy/"+ns+"/"+svc, nil)
 		rr := httptest.NewRecorder()
 		router.ServeHTTP(rr, req)
@@ -2094,7 +2109,7 @@ func TestHandleClusterServiceProxy(t *testing.T) {
 
 	// Case 2: ?request present but missing Authorization => 401, headers set
 	{
-		req := httptest.NewRequest(http.MethodGet,
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet,
 			"/clusters/"+cluster+"/serviceproxy/"+ns+"/"+svc+"?request=/healthz", nil)
 		rr := httptest.NewRecorder()
 		router.ServeHTTP(rr, req)
@@ -2106,7 +2121,7 @@ func TestHandleClusterServiceProxy(t *testing.T) {
 
 	// Case 3 (Happy path): ?request present and Authorization provided => proxy reaches backend => 200 OK
 	{
-		req := httptest.NewRequest(http.MethodGet,
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet,
 			"/clusters/"+cluster+"/serviceproxy/"+ns+"/"+svc+"?request=/healthz", nil)
 		req.Header.Set("Authorization", "Bearer test-token")
 

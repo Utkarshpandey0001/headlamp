@@ -155,11 +155,11 @@ func TestParseWithEnv(t *testing.T) {
 	for _, tt := range ParseWithEnvTests {
 		t.Run(tt.name, func(t *testing.T) {
 			for key, value := range tt.env {
-				os.Setenv(key, value)
+				require.NoError(t, os.Setenv(key, value))
 			}
 			defer func(env map[string]string) {
 				for key := range env {
-					os.Unsetenv(key)
+					require.NoError(t, os.Unsetenv(key))
 				}
 			}(tt.env)
 
@@ -370,11 +370,11 @@ func TestOIDCTLSEnvironmentVariables(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			for key, value := range tt.env {
-				os.Setenv(key, value)
+				require.NoError(t, os.Setenv(key, value))
 			}
 			defer func(env map[string]string) {
 				for key := range env {
-					os.Unsetenv(key)
+					require.NoError(t, os.Unsetenv(key))
 				}
 			}(tt.env)
 
