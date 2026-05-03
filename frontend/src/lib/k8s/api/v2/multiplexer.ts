@@ -57,20 +57,14 @@ export const WebSocketManager = {
     return `${clusterId}:${path}:${query}`;
   },
 
+  /** Promise for the current connection attempt */
+  connectPromise: null as Promise<WebSocket> | null,
+
   /**
    * Establishes or returns an existing WebSocket connection.
    *
-   * This implementation uses a polling approach to handle concurrent connection attempts.
-   * While not ideal, it's a simple solution that works for most cases.
-   *
-   * Known limitations:
-   * 1. Polls every 100ms which may not be optimal for performance
-   * 2. No timeout - could theoretically run forever if connection never opens
-   * 3. May miss state changes that happen between polls
-   *
-   * A more robust solution would use event listeners and Promise caching,
-   * but that adds complexity and potential race conditions to handle.
-   * The current polling approach, while not perfect, is simple and mostly reliable.
+   * Note: New connection attempts enforce a 10-second timeout to prevent
+   * promises from hanging indefinitely if the server fails to respond.
    *
    * @returns Promise resolving to WebSocket connection
    */
@@ -80,27 +74,30 @@ export const WebSocketManager = {
       return this.socketMultiplexer;
     }
 
-    // Wait for existing connection attempt if in progress
-    if (this.connecting) {
-      return new Promise(resolve => {
-        const checkConnection = setInterval(() => {
-          if (this.socketMultiplexer?.readyState === WebSocket.OPEN) {
-            clearInterval(checkConnection);
-            resolve(this.socketMultiplexer);
-          }
-        }, 100);
-      });
+    // Return existing connection promise if in progress
+    if (this.connectPromise) {
+      return this.connectPromise;
     }
 
-    this.connecting = true;
-    const wsUrl = `${getBaseWsUrl()}${MULTIPLEXER_ENDPOINT}`;
-
-    return new Promise((resolve, reject) => {
+    this.connectPromise = new Promise((resolve, reject) => {
+      this.connecting = true;
+      const wsUrl = `${getBaseWsUrl()}${MULTIPLEXER_ENDPOINT}`;
       const socket = new WebSocket(wsUrl);
 
+      // Set a timeout to prevent hanging indefinitely
+      const timeoutId = setTimeout(() => {
+        if (socket.readyState !== WebSocket.OPEN) {
+          this.connecting = false;
+          this.connectPromise = null;
+          reject(new Error('WebSocket connection timed out'));
+        }
+      }, 10000);
+
       socket.onopen = () => {
+        clearTimeout(timeoutId);
         this.socketMultiplexer = socket;
         this.connecting = false;
+        this.connectPromise = null;
 
         // Only resubscribe if we're reconnecting after a disconnect
         if (this.isReconnecting) {
@@ -114,15 +111,22 @@ export const WebSocketManager = {
       socket.onmessage = this.handleWebSocketMessage.bind(this);
 
       socket.onerror = event => {
+        clearTimeout(timeoutId);
         this.connecting = false;
+        this.connectPromise = null;
         console.error('WebSocket error:', event);
         reject(new Error('WebSocket connection failed'));
       };
 
       socket.onclose = () => {
+        clearTimeout(timeoutId);
+        this.connecting = false;
+        this.connectPromise = null;
         this.handleWebSocketClose();
       };
     });
+
+    return this.connectPromise;
   },
 
   /**
@@ -167,17 +171,30 @@ export const WebSocketManager = {
     listeners.add(onMessage);
     this.listeners.set(key, listeners);
 
-    // Establish connection and send REQUEST
-    const socket = await this.connect();
-    const userId = getUserIdFromLocalStorage();
-    const requestMsg: WebSocketMessage = {
-      clusterId,
-      path,
-      query,
-      userId: userId || '',
-      type: 'REQUEST',
-    };
-    socket.send(JSON.stringify(requestMsg));
+    try {
+      // Establish connection and send REQUEST
+      const socket = await this.connect();
+      const userId = getUserIdFromLocalStorage();
+      const requestMsg: WebSocketMessage = {
+        clusterId,
+        path,
+        query,
+        userId: userId || '',
+        type: 'REQUEST',
+      };
+      socket.send(JSON.stringify(requestMsg));
+    } catch (error) {
+      // Clean up the recorded listener and subscription if connection fails
+      const currentListeners = this.listeners.get(key);
+      if (currentListeners) {
+        currentListeners.delete(onMessage);
+        if (currentListeners.size === 0) {
+          this.listeners.delete(key);
+          this.activeSubscriptions.delete(key);
+        }
+      }
+      throw error;
+    }
 
     // Return cleanup function
     return () => this.unsubscribe(key, clusterId, path, query, onMessage);

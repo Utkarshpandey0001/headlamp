@@ -246,6 +246,54 @@ describe('WebSocket Multiplexer', () => {
       expect(WebSocketManager.connecting).toBe(false);
     });
 
+    it('should handle concurrent connection failures and clean up subscriptions', async () => {
+      const mockClose = vi.fn();
+      const MockWebSocket = vi.fn(() => ({
+        readyState: 0, // CONNECTING
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        send: vi.fn(),
+        close: mockClose,
+        onopen: null as any,
+        onerror: null as any,
+        onmessage: null as any,
+        onclose: null as any,
+      })) as any;
+
+      MockWebSocket.CONNECTING = 0;
+      MockWebSocket.OPEN = 1;
+      MockWebSocket.CLOSING = 2;
+      MockWebSocket.CLOSED = 3;
+
+      vi.stubGlobal('WebSocket', MockWebSocket);
+
+      try {
+        const path1 = '/api/v1/pods';
+        const path2 = '/api/v1/services';
+
+        const sub1 = WebSocketManager.subscribe(clusterName, path1, 'watch=true', onMessage);
+        const sub2 = WebSocketManager.subscribe(clusterName, path2, 'watch=true', vi.fn());
+
+        expect(MockWebSocket).toHaveBeenCalledTimes(1);
+
+        const wsInstance = MockWebSocket.mock.results[0].value;
+        wsInstance.onerror?.(new Event('error'));
+
+        await expect(sub1).rejects.toThrow('WebSocket connection failed');
+        await expect(sub2).rejects.toThrow('WebSocket connection failed');
+
+        const key1 = WebSocketManager.createKey(clusterName, path1, 'watch=true');
+        const key2 = WebSocketManager.createKey(clusterName, path2, 'watch=true');
+
+        expect(WebSocketManager.activeSubscriptions.has(key1)).toBe(false);
+        expect(WebSocketManager.activeSubscriptions.has(key2)).toBe(false);
+        expect(WebSocketManager.listeners.has(key1)).toBe(false);
+        expect(WebSocketManager.listeners.has(key2)).toBe(false);
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
     it('should handle duplicate subscriptions', async () => {
       const path = '/api/v1/pods';
       const query = 'watch=true';
@@ -413,31 +461,42 @@ describe('WebSocket Multiplexer', () => {
 
   describe('WebSocket error handling', () => {
     it('should handle polling timeout', async () => {
-      const OriginalWebSocket = window.WebSocket;
+      vi.useFakeTimers();
 
-      // Mock WebSocket that triggers an error immediately after construction
-      vi.stubGlobal('WebSocket', function (this: any) {
-        const ws = {
-          readyState: WebSocket.CONNECTING,
-          onopen: null as any,
-          onclose: null as any,
-          onerror: null as any,
-          onmessage: null as any,
-          send: vi.fn(),
-          close: vi.fn(),
-        };
-        setTimeout(() => ws.onerror?.(new Event('error')), 0);
-        return ws;
-      });
+      try {
+        // Mock WebSocket to remain in CONNECTING state and never fire events
+        const MockWebSocket = function (this: any) {
+          const ws = {
+            readyState: 0, // CONNECTING
+            onopen: null as any,
+            onclose: null as any,
+            onerror: null as any,
+            onmessage: null as any,
+            send: vi.fn(),
+            close: vi.fn(),
+          };
+          return ws;
+        } as any;
+        MockWebSocket.CONNECTING = 0;
+        MockWebSocket.OPEN = 1;
+        MockWebSocket.CLOSING = 2;
+        MockWebSocket.CLOSED = 3;
 
-      const path = '/api/v1/pods';
-      const query = 'watch=true';
+        vi.stubGlobal('WebSocket', MockWebSocket);
 
-      await expect(WebSocketManager.subscribe(clusterName, path, query, onMessage)).rejects.toThrow(
-        `Cannot read properties of null (reading 'send')`
-      );
+        const path = '/api/v1/pods';
+        const query = 'watch=true';
 
-      vi.stubGlobal('WebSocket', OriginalWebSocket);
+        const subPromise = WebSocketManager.subscribe(clusterName, path, query, onMessage);
+        const assertion = expect(subPromise).rejects.toThrow('WebSocket connection timed out');
+
+        await vi.advanceTimersByTimeAsync(10000);
+
+        await assertion;
+      } finally {
+        vi.unstubAllGlobals();
+        vi.useRealTimers();
+      }
     });
 
     it('should handle reconnection and resubscribe', async () => {
