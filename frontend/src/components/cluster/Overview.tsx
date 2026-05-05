@@ -190,12 +190,18 @@ function EventsSection() {
       errors={eventsErrors}
       columns={[
         {
+          // Preserve index-based ID for backward compatibility with
+          // persisted column visibility/order in localStorage.
+          id: '0',
           label: t('Type'),
           gridTemplate: 'min-content',
           filterVariant: 'multi-select',
           getValue: event => event.involvedObject.kind,
         },
         {
+          // Preserve index-based ID for backward compatibility with
+          // persisted column visibility/order in localStorage.
+          id: '1',
           label: t('Name'),
           getValue: event => event.involvedObjectInstance?.getName() ?? event.involvedObject.name,
           render: event => makeObjectLink(event),
@@ -204,6 +210,9 @@ function EventsSection() {
         'namespace',
         'cluster',
         {
+          // Preserve index-based ID for backward compatibility with
+          // persisted column visibility/order in localStorage.
+          id: '4',
           label: t('Reason'),
           gridTemplate: 'min-content',
           filterVariant: 'multi-select',
@@ -215,12 +224,26 @@ function EventsSection() {
           ),
         },
         {
+          // Preserve index-based ID for backward compatibility with
+          // persisted column visibility/order in localStorage.
+          id: '5',
           label: t('Message'),
           getValue: event => event.message ?? '',
           render: event => (
             <ShowHideLabel labelId={event.metadata?.uid || ''}>{event.message || ''}</ShowHideLabel>
           ),
           gridTemplate: 'auto',
+        },
+        {
+          id: 'node',
+          label: t('glossary|Node'),
+          getValue: event =>
+            event.source?.host ||
+            ((event.reportingComponent === 'kubelet' || event.source?.component === 'kubelet') &&
+              event.reportingInstance) ||
+            '',
+          gridTemplate: 'auto',
+          show: false,
         },
         {
           id: 'count',

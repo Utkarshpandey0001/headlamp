@@ -38,6 +38,15 @@ export interface KubeEvent {
     resourceVersion: string;
     fieldPath: string;
   };
+  /** Instance name of the component reporting this event (e.g. "kubelet-node1"). */
+  reportingInstance?: string;
+  /** Name of the controller that emitted this event (e.g. "kubelet"). */
+  reportingComponent?: string;
+  /** Legacy source information for the event. */
+  source?: {
+    component?: string;
+    host?: string;
+  };
   [otherProps: string]: any;
 }
 
@@ -87,6 +96,14 @@ class Event extends KubeObject<KubeEvent> {
 
   get source() {
     return this.getValue('source');
+  }
+
+  get reportingInstance() {
+    return this.getValue('reportingInstance');
+  }
+
+  get reportingComponent() {
+    return this.getValue('reportingComponent');
   }
 
   get count() {
