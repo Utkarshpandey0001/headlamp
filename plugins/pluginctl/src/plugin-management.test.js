@@ -22,6 +22,11 @@ const semver = require('semver');
 const PluginManager = pluginManagement.PluginManager;
 const validateArchiveURL = pluginManagement.validateArchiveURL;
 
+const TEST_PLUGIN = {
+  folderName: 'headlamp_opencost',
+  packageName: '@headlamp-k8s/opencost',
+  url: 'https://artifacthub.io/packages/headlamp/headlamp-plugins/headlamp_opencost',
+};
 
 // Mocking progressCallback function for testing
 // eslint-disable-next-line
@@ -48,12 +53,7 @@ describe('PluginManager Test Cases', () => {
   });
 
   test('Install Plugin', async () => {
-    await PluginManager.install(
-      'https://artifacthub.io/packages/headlamp/test-123/appcatalog_headlamp_plugin',
-      tempDir,
-      '',
-      mockProgressCallback
-    );
+    await PluginManager.install(TEST_PLUGIN.url, tempDir, '', mockProgressCallback);
     expect(mockProgressCallback).toHaveBeenCalledWith({
       type: 'success',
       message: 'Plugin Installed',
@@ -62,7 +62,7 @@ describe('PluginManager Test Cases', () => {
 
   test('List Plugins', () => {
     PluginManager.list(tempDir, mockProgressCallback);
-    // Assuming "app-catalog" plugin is in the list of plugins
+    // Assuming the test plugin is in the list of plugins
     expect(mockProgressCallback).toHaveBeenCalledWith({
       type: 'success',
       message: 'Plugins Listed',
@@ -71,8 +71,7 @@ describe('PluginManager Test Cases', () => {
   });
 
   test('No Update available for Plugin', async () => {
-    // No updates available for "app-catalog" plugin
-    await PluginManager.update('app-catalog', tempDir, '', mockProgressCallback);
+    await PluginManager.update(TEST_PLUGIN.packageName, tempDir, '', mockProgressCallback);
     expect(mockProgressCallback).toHaveBeenCalledWith({
       type: 'error',
       message: 'No updates available',
@@ -80,8 +79,8 @@ describe('PluginManager Test Cases', () => {
   });
 
   test('Update Plugin', async () => {
-    // update the "app-catalog" plugin package.json with lower state
-    const packageJSONPath = `${tempDir}/appcatalog_headlamp_plugin/package.json`;
+    // update the plugin package.json with lower state
+    const packageJSONPath = `${tempDir}/${TEST_PLUGIN.folderName}/package.json`;
     const packageJSON = JSON.parse(fs.readFileSync(packageJSONPath));
     packageJSON.artifacthub.version = `${semver.major(
       packageJSON.artifacthub.version
@@ -91,7 +90,7 @@ describe('PluginManager Test Cases', () => {
     // Write the updated package.json back to the file
     fs.writeFileSync(packageJSONPath, JSON.stringify(packageJSON, null, 2));
 
-    await PluginManager.update('app-catalog', tempDir, '', mockProgressCallback);
+    await PluginManager.update(TEST_PLUGIN.packageName, tempDir, '', mockProgressCallback);
     expect(mockProgressCallback).toHaveBeenCalledWith({
       type: 'success',
       message: 'Plugin Updated',
@@ -101,18 +100,13 @@ describe('PluginManager Test Cases', () => {
   test('Uninstall Plugin', async () => {
     const tempDir = tmp.dirSync({ unsafeCleanup: true }).name;
 
-    await PluginManager.install(
-      'https://artifacthub.io/packages/headlamp/test-123/appcatalog_headlamp_plugin',
-      tempDir,
-      '',
-      mockProgressCallback
-    );
+    await PluginManager.install(TEST_PLUGIN.url, tempDir, '', mockProgressCallback);
     expect(mockProgressCallback).toHaveBeenCalledWith({
       type: 'success',
       message: 'Plugin Installed',
     });
 
-    PluginManager.uninstall('app-catalog', tempDir, mockProgressCallback);
+    PluginManager.uninstall(TEST_PLUGIN.packageName, tempDir, mockProgressCallback);
     expect(mockProgressCallback).toHaveBeenCalledWith({
       type: 'success',
       message: 'Plugin Uninstalled',
@@ -124,15 +118,23 @@ describe('PluginManager Test Cases', () => {
 
 describe('validateArchiveURL', () => {
   test('valid GitHub release URL', () => {
-    expect(validateArchiveURL('https://github.com/kubernetes-sigs/headlamp/releases/download/v0.24.1/Headlamp-0.24.1-win-x64.exe')).toBe(true);
+    expect(
+      validateArchiveURL(
+        'https://github.com/kubernetes-sigs/headlamp/releases/download/v0.24.1/Headlamp-0.24.1-win-x64.exe'
+      )
+    ).toBe(true);
   });
 
   test('valid GitHub archive URL', () => {
-    expect(validateArchiveURL('https://github.com/owner/repo/archive/refs/tags/v1.0.0.zip')).toBe(true);
+    expect(validateArchiveURL('https://github.com/owner/repo/archive/refs/tags/v1.0.0.zip')).toBe(
+      true
+    );
   });
 
   test('valid Bitbucket download URL', () => {
-    expect(validateArchiveURL('https://bitbucket.org/owner/repo/downloads/package-1.0.0.zip')).toBe(true);
+    expect(validateArchiveURL('https://bitbucket.org/owner/repo/downloads/package-1.0.0.zip')).toBe(
+      true
+    );
   });
 
   test('valid Bitbucket get archive URL', () => {
@@ -140,7 +142,11 @@ describe('validateArchiveURL', () => {
   });
 
   test('valid GitLab release URL', () => {
-    expect(validateArchiveURL('https://gitlab.com/gitlab-org/gitlab/-/archive/v17.2.0-ee/gitlab-v17.2.0-ee.tar.gz')).toBe(true);
+    expect(
+      validateArchiveURL(
+        'https://gitlab.com/gitlab-org/gitlab/-/archive/v17.2.0-ee/gitlab-v17.2.0-ee.tar.gz'
+      )
+    ).toBe(true);
   });
 
   test('invalid URL', () => {
