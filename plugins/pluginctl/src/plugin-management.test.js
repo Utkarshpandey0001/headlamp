@@ -37,19 +37,16 @@ const mockProgressCallback = jest.fn(args => {
 describe('PluginManager Test Cases', () => {
   let tempDir;
 
-  beforeAll(() => {
-    // Create a temporary directory before all tests
-    tempDir = tmp.dirSync({ unsafeCleanup: true }).name;
-  });
-
-  afterAll(() => {
-    // Remove the temporary directory after all tests
-    fs.rmdirSync(tempDir, { recursive: true });
-  });
-
   beforeEach(() => {
+    // Create a temporary directory before each test
+    tempDir = tmp.dirSync({ unsafeCleanup: true }).name;
     // Initialize a new PluginManager instance before each test
     jest.clearAllMocks();
+  });
+
+  afterEach(() => {
+    // Remove the temporary directory after each test
+    fs.rmdirSync(tempDir, { recursive: true });
   });
 
   test('Install Plugin', async () => {
@@ -60,17 +57,26 @@ describe('PluginManager Test Cases', () => {
     });
   });
 
-  test('List Plugins', () => {
+  test('List Plugins', async () => {
+    await PluginManager.install(TEST_PLUGIN.url, tempDir, '', jest.fn());
     PluginManager.list(tempDir, mockProgressCallback);
-    // Assuming the test plugin is in the list of plugins
-    expect(mockProgressCallback).toHaveBeenCalledWith({
-      type: 'success',
-      message: 'Plugins Listed',
-      data: expect.any(Array),
-    });
+    
+    expect(mockProgressCallback).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'success',
+        message: 'Plugins Listed',
+        data: expect.arrayContaining([
+          expect.objectContaining({
+            pluginName: TEST_PLUGIN.packageName,
+            folderName: TEST_PLUGIN.folderName,
+          }),
+        ]),
+      })
+    );
   });
 
   test('No Update available for Plugin', async () => {
+    await PluginManager.install(TEST_PLUGIN.url, tempDir, '', jest.fn());
     await PluginManager.update(TEST_PLUGIN.packageName, tempDir, '', mockProgressCallback);
     expect(mockProgressCallback).toHaveBeenCalledWith({
       type: 'error',
@@ -79,6 +85,7 @@ describe('PluginManager Test Cases', () => {
   });
 
   test('Update Plugin', async () => {
+    await PluginManager.install(TEST_PLUGIN.url, tempDir, '', jest.fn());
     // update the plugin package.json with lower state
     const packageJSONPath = `${tempDir}/${TEST_PLUGIN.folderName}/package.json`;
     const packageJSON = JSON.parse(fs.readFileSync(packageJSONPath));
@@ -98,21 +105,12 @@ describe('PluginManager Test Cases', () => {
   });
 
   test('Uninstall Plugin', async () => {
-    const tempDir = tmp.dirSync({ unsafeCleanup: true }).name;
-
-    await PluginManager.install(TEST_PLUGIN.url, tempDir, '', mockProgressCallback);
-    expect(mockProgressCallback).toHaveBeenCalledWith({
-      type: 'success',
-      message: 'Plugin Installed',
-    });
-
+    await PluginManager.install(TEST_PLUGIN.url, tempDir, '', jest.fn());
     PluginManager.uninstall(TEST_PLUGIN.packageName, tempDir, mockProgressCallback);
     expect(mockProgressCallback).toHaveBeenCalledWith({
       type: 'success',
       message: 'Plugin Uninstalled',
     });
-
-    fs.rmdirSync(tempDir, { recursive: true });
   });
 });
 
